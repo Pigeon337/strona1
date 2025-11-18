@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Mini PuTTY Online z Baud</title>
+<style>
+body { font-family: monospace; background:#111; color:#0f0; display:flex; flex-direction:column; align-items:center; padding:20px; }
+#terminal { width:90%; height:400px; background:#000; color:#0f0; border:2px solid #0f0; padding:10px; overflow-y:auto; margin-top:20px; white-space:pre-wrap; }
+input, select, button { padding:5px; font-size:16px; margin:5px; }
+</style>
+</head>
+<body>
+<h1>🔥 Mini PuTTY Online z wyborem baud 🔥</h1>
+
+<label for="baudSelect">Baud rate:</label>
+<select id="baudSelect">
+  <option value="9600">9600</option>
+  <option value="19200">19200</option>
+  <option value="38400">38400</option>
+  <option value="57600">57600</option>
+  <option value="115200" selected>115200</option>
+</select>
+
+<button id="connectBtn">Connect</button>
+
+<div id="terminal">Terminal:</div>
+
+<input type="text" id="cmdInput" placeholder="Wpisz komendę" disabled>
+<button id="sendBtn" disabled>Send</button>
+
+<script>
+let port, writer, reader;
+
+async function connectSerial() {
+    const baudRate = parseInt(document.getElementById("baudSelect").value);
+    try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate });
+        document.getElementById("cmdInput").disabled = false;
+        document.getElementById("sendBtn").disabled = false;
+        logTerminal(`Połączono z portem szeregowym przy ${baudRate} baud.\n`);
+
+        reader = port.readable.getReader();
+        readLoop();
+    } catch(err) {
+        logTerminal("Błąd połączenia: " + err + "\n");
+    }
+}
+
+async function readLoop() {
+    while (true) {
+        try {
+            const { value, done } = await reader.read();
+            if (done) break;
+            if (value) {
+                const text = new TextDecoder().decode(value);
+                logTerminal(text);
+            }
+        } catch (err) {
+            logTerminal("Błąd odczytu: " + err + "\n");
+            break;
+        }
+    }
+}
+
+function logTerminal(msg) {
+    const term = document.getElementById("terminal");
+    term.textContent += msg;
+    term.scrollTop = term.scrollHeight;
+}
+
+document.getElementById("connectBtn").addEventListener("click", connectSerial);
+
+document.getElementById("sendBtn").addEventListener("click", async () => {
+    const input = document.getElementById("cmdInput").value + "\n";
+    const data = new TextEncoder().encode(input);
+    writer = port.writable.getWriter();
+    await writer.write(data);
+    writer.releaseLock();
+    document.getElementById("cmdInput").value = "";
+});
+</script>
+</body>
+</html>
